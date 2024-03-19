@@ -49,21 +49,28 @@ func EscribirBytes(file *os.File, bytes []byte) {
 }
 
 func leerDisco(path string) *Structs.MBR {
+
+	fmt.Println("===== FUNCIÓN LEER DISCO - ENTRADA =====")
+	fmt.Println("PATH: " + path)
+
 	m := Structs.MBR{}
-	file, err := os.Open(strings.ReplaceAll(path, "\"", ""))
+	file, err := os.Open(path)
 	defer file.Close()
 	if err != nil {
-		Error("FDISK", "Error al abrir el archivo")
+		Error("FDISK - leerDisco (Additional Commands)", "Error al abrir el archivo")
 		return nil
 	}
+
 	file.Seek(0, 0)
 	data := leerBytes(file, int(unsafe.Sizeof(Structs.MBR{})))
 	buffer := bytes.NewBuffer(data)
 	err_ := binary.Read(buffer, binary.BigEndian, &m)
+
 	if err_ != nil {
-		Error("FDSIK", "Error al leer el archivo")
+		Error("FDSIK - leerDisco (Additional Commands)", "Error al leer el archivo")
 		return nil
 	}
+
 	var mDir *Structs.MBR = &m
 	return mDir
 }
@@ -77,4 +84,12 @@ func leerBytes(file *os.File, number int) []byte {
 	}
 
 	return bytes
+}
+
+func directorioActual() string {
+	dir, err := os.Getwd()
+	if err != nil {
+		return ""
+	}
+	return dir
 }

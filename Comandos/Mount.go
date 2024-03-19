@@ -25,24 +25,36 @@ type ParticionMontada struct {
 	Nombre [20]byte
 }
 
-var alfabeto = []byte{'a', 'b', 'c', 'd', 'e', 'f', 'g', 'h', 'i', 'j', 'k', 'l', 'm', 'n', 'o', 'p', 'q', 'r', 's', 't', 'u', 'v', 'w', 'x', 'y', 'z'}
+var alfabeto = []byte{'A', 'B', 'C', 'D', 'E', 'F', 'G', 'H', 'I', 'J', 'K', 'L', 'M', 'N', 'O', 'P', 'Q', 'R', 'S', 'T', 'U', 'V', 'W', 'X', 'Y', 'Z'}
 
 func ValidarDatosMOUNT(context []string) {
 
 	fmt.Println("=============== FUNCIÓN VALIDAR DATOS MOUNT - ENTRADA ===============")
 	fmt.Println(context)
 
+	driveletter := ""
 	name := ""
-	path := ""
+
 	for i := 0; i < len(context); i++ {
 		current := context[i]
 		comando := strings.Split(current, "=")
 		if Comparar(comando[0], "name") {
 			name = comando[1]
-		} else if Comparar(comando[0], "path") {
-			path = strings.ReplaceAll(comando[1], "\"", "")
+		} else if Comparar(comando[0], "driveletter") {
+			driveletter = comando[1]
 		}
 	}
+
+	prevPath := directorioActual()
+
+	if prevPath == "" {
+		Error("MOUNT", "No se ha encontrado el directorio actual.")
+		return
+
+	}
+
+	path := prevPath + "/MIA/P1/" + driveletter + ".dsk"
+
 	if path == "" || name == "" {
 		Error("MOUNT", "El comando MOUNT requiere parámetros obligatorios")
 		return
@@ -76,6 +88,12 @@ func mount(p string, n string) {
 	file.Close()
 
 	particion := BuscarParticiones(disk, n, p)
+	if particion == nil {
+		Error("MOUNT", "No se encontró la partición "+n+" en el disco "+p)
+		return
+
+	}
+
 	if particion.Part_type == 'E' || particion.Part_type == 'L' {
 		var nombre [16]byte
 		copy(nombre[:], n)
@@ -111,6 +129,10 @@ func mount(p string, n string) {
 			}
 		}
 	}
+
+	//prevDriveLetter := path.Base(p)
+	//driveletter := strings.TrimSuffix(prevDriveLetter, path.Ext(prevDriveLetter))
+
 	for i := 0; i < 99; i++ {
 		var ruta [150]byte
 		copy(ruta[:], p)
@@ -119,20 +141,21 @@ func mount(p string, n string) {
 				var nombre [20]byte
 				copy(nombre[:], n)
 				if DiscMont[i].Particiones[j].Nombre == nombre {
-					Error("MOUNT", "Ya se ha montado la partición "+n)
+					Error("MOUNT", "La partición "+n+" ya está montada en el disco "+p)
 					return
 				}
 				if DiscMont[i].Particiones[j].Estado == 0 {
 					DiscMont[i].Particiones[j].Estado = 1
 					DiscMont[i].Particiones[j].Letra = alfabeto[j]
 					copy(DiscMont[i].Particiones[j].Nombre[:], n)
-					re := strconv.Itoa(i+1) + string(alfabeto[j])
-					Mensaje("MOUNT", "Se ha realizado correctamente el mount -id = 79"+re)
+					re := string(alfabeto[j]) + strconv.Itoa(j+1) + strconv.Itoa(49)
+					Mensaje("MOUNT", "Se ha realizado correctamente el MOUNT en el disco"+p+" con el ID = "+re)
 					return
 				}
 			}
 		}
 	}
+
 	for i := 0; i < 99; i++ {
 		if DiscMont[i].Estado == 0 {
 			DiscMont[i].Estado = 1
@@ -142,9 +165,8 @@ func mount(p string, n string) {
 					DiscMont[i].Particiones[j].Estado = 1
 					DiscMont[i].Particiones[j].Letra = alfabeto[j]
 					copy(DiscMont[i].Particiones[j].Nombre[:], n)
-
-					re := strconv.Itoa(i+1) + string(alfabeto[j])
-					Mensaje("MOUNT", "se ha realizado correctamente el mount -id=79"+re)
+					re := string(alfabeto[j]) + strconv.Itoa(j+1) + strconv.Itoa(49)
+					Mensaje("MOUNT", "Se ha realizado correctamente el MOUNT en el disco "+p+" con -id = "+re)
 					return
 				}
 			}
@@ -159,12 +181,12 @@ func GetMount(comando string, id string, p *string) Structs.Particion {
 	fmt.Println("Id: " + id)
 	fmt.Println("Path: " + *p)
 
-	if !(id[0] == '7' && id[1] == '9') {
+	if !(id[2] == '4' && id[3] == '9') {
 		Error(comando, "El primer identificador no es válido.")
 		return Structs.Particion{}
 	}
 	letra := id[len(id)-1]
-	id = strings.ReplaceAll(id, "79", "")
+	id = strings.ReplaceAll(id, "49", "")
 	i, _ := strconv.Atoi(string(id[0] - 1))
 	if i < 0 {
 		Error(comando, "El primer identificador no es válido.")
@@ -224,7 +246,7 @@ func listaMount() {
 						nombre += string(DiscMont[i].Particiones[j].Nombre[k])
 					}
 				}
-				fmt.Println("\t id: 79" + strconv.Itoa(i+1) + string(alfabeto[j]) + ", Nombre: " + nombre)
+				fmt.Println("\tID = " + strings.ToUpper(string(alfabeto[j])) + strconv.Itoa(i+1) + strconv.Itoa(49) + ", Nombre = " + nombre)
 			}
 		}
 	}

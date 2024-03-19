@@ -2,10 +2,10 @@ package Comandos
 
 import (
 	"MIA_P1_202111849/Structs"
+	"bytes"
 	"crypto/rand"
 	"encoding/binary"
 	"fmt"
-	"log"
 	"math/big"
 	"os"
 	"strconv"
@@ -93,6 +93,8 @@ func ValidarDatosMKDISK(tokens []string) {
 	}
 }
 
+var Count int = 0
+
 // makeFile crea un nuevo archivo de disco con los parámetros especificados
 func makeFile(s string, f string, u string) {
 	// Imprimir los parámetros de entrada
@@ -150,29 +152,70 @@ func makeFile(s string, f string, u string) {
 	disco.Mbr_partition_3 = Structs.NewParticion()
 	disco.Mbr_partition_4 = Structs.NewParticion()
 
-	var filename string
-	for i := 0; ; i++ {
-		filename = string(rune('A'+i)) + ".dsk"
-		path := "/home/sergio/GolandProjects/MIA/P1/" + filename
-		if _, err := os.Stat(path); os.IsNotExist(err) {
-			// Crear el archivo de disco
-			file, err := os.Create(path)
-			if err != nil {
-				log.Fatal(err)
-			}
+	currentDir := directorioActual()
 
-			// Llenar el archivo con ceros
-			zeros := make([]byte, size)
-			file.Write(zeros)
+	if currentDir == "" {
+		Error("MKDISK", "Error al obtener el directorio actual")
+		return
+	}
 
-			// Escribir la estructura MBR al inicio del archivo
-			binary.Write(file, binary.BigEndian, &disco)
-			file.Close()
+	extCurrentDir := currentDir + "/MIA/P1/"
 
-			fmt.Println("Disco creado: " + path)
-			break
+	letter := string(rune('A' + Count))
+
+	Count++
+
+	path := extCurrentDir + letter + ".dsk"
+
+	if ArchivoExiste(path) {
+		_ = os.Remove(path)
+	}
+
+	if !strings.HasSuffix(path, "dsk") {
+		Error("MKDISK", "Extensión de archivo no válida.")
+		return
+	}
+	carpeta := ""
+	direccion := strings.Split(path, "/")
+
+	for i := 0; i < len(direccion)-1; i++ {
+		carpeta += "/" + direccion[i]
+		if _, err_ := os.Stat(carpeta); os.IsNotExist(err_) {
+			os.Mkdir(carpeta, 0777)
 		}
 	}
+
+	file, err := os.Create(path)
+	if err != nil {
+		Error("MKDISK", "No se pudo crear el disco.")
+		return
+	}
+	defer file.Close()
+	var vacio int8 = 0
+	s1 := &vacio
+	var num int64 = 0
+	num = int64(size)
+	num = num - 1
+	var binario bytes.Buffer
+	binary.Write(&binario, binary.BigEndian, s1)
+	EscribirBytes(file, binario.Bytes())
+
+	file.Seek(num, 0)
+
+	var binario2 bytes.Buffer
+	binary.Write(&binario2, binary.BigEndian, s1)
+	EscribirBytes(file, binario2.Bytes())
+
+	file.Seek(0, 0)
+	disco.Mbr_tamano = num + 1
+
+	var binario3 bytes.Buffer
+	binary.Write(&binario3, binary.BigEndian, disco)
+	EscribirBytes(file, binario3.Bytes())
+	file.Close()
+	nombreDisco := strings.Split(path, "/")
+	Mensaje("MKDISK", "Disco \""+nombreDisco[len(nombreDisco)-1]+"\" creado correctamente")
+
 }
 
 // RMDISK es una función que elimina un archivo de disco basado en la letra de la unidad proporcionada
@@ -219,7 +262,14 @@ func RMDISK(tokens []string) {
 		return
 	} else {
 		// Construir la ruta al archivo basado en la letra de la unidad
-		path := "/home/sergio/GolandProjects/MIA/P1/" + driveLetter + ".dsk"
+		prevPath := directorioActual()
+		if prevPath == "" {
+			Error("RMDISK", "Error al obtener el directorio actual")
+			return
+		}
+
+		extPath := prevPath + "/MIA/P1/"
+		path := extPath + driveLetter + ".dsk"
 
 		// Verificar que el archivo existe
 		if !ArchivoExiste(path) {

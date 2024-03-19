@@ -27,46 +27,69 @@ func ValidarDatosFDISK(tokens []string) {
 	fmt.Println(tokens)
 
 	size := ""
-	path := ""
+	driveletter := ""
+	name := ""
 	unit := "k"
 	tipo := "P"
 	fit := "WF"
-	name := ""
+	delete := ""
+	add := ""
+
 	for i := 0; i < len(tokens); i++ {
 		token := tokens[i]
 		tk := strings.Split(token, "=")
 		if Comparar(tk[0], "size") {
 			size = tk[1]
+		} else if Comparar(tk[0], "driveletter") {
+			driveletter = tk[1]
+		} else if Comparar(tk[0], "name") {
+			name = tk[1]
 		} else if Comparar(tk[0], "unit") {
 			unit = tk[1]
-		} else if Comparar(tk[0], "path") {
-			path = strings.ReplaceAll(tk[1], "\"", "")
 		} else if Comparar(tk[0], "type") {
 			tipo = tk[1]
 		} else if Comparar(tk[0], "fit") {
 			fit = tk[1]
-		} else if Comparar(tk[0], "name") {
-			name = tk[1]
+		} else if Comparar(tk[0], "delete") {
+			delete = tk[1]
+		} else if Comparar(tk[0], "add") {
+			add = tk[1]
 		}
 	}
-	if size == "" || path == "" || name == "" {
-		Error("FDISK", "El comando FDISK necesita parametros obligatorios")
+
+	if delete != "" && add != "" {
+		Error("FDISK", "No se puede agregar y eliminar particiones al mismo tiempo.")
+		return
+	}
+
+	if delete != "" {
+		eliminarParticion(driveletter, name, delete)
+		return
+
+	}
+
+	if add != "" {
+		agregarEspacioParticion(driveletter, name, unit, add)
+		return
+	}
+
+	if size == "" || driveletter == "" || name == "" {
+		Error("FDISK", "El comando FDISK necesita parametros obligatorios: SIZE, DRIVELETTER y/o NAME")
 		return
 	} else {
+		prevPath := directorioActual()
+		if prevPath == "" {
+			Error("FDISK", "No se ha encontrado el directorio actual.")
+			return
+		}
+
+		path := prevPath + "/MIA/P1/" + driveletter + ".dsk"
+
 		generarParticion(size, unit, path, tipo, fit, name)
 	}
 }
 
 func generarParticion(s string, u string, p string, t string, f string, n string) {
-
-	fmt.Println("=============== COMANDOS/FDISK - FUNCIÓN GENERAR PARTICIÓN - ENTRADA ===============")
-	fmt.Println(s)
-	fmt.Println(u)
-	fmt.Println(p)
-	fmt.Println(t)
-	fmt.Println(f)
-	fmt.Println(n)
-
 	startValue = 0
 	i, error_ := strconv.Atoi(s)
 	if error_ != nil {
@@ -77,6 +100,7 @@ func generarParticion(s string, u string, p string, t string, f string, n string
 		Error("FDISK", "Size debe ser mayor que 0")
 		return
 	}
+
 	if Comparar(u, "b") || Comparar(u, "k") || Comparar(u, "m") {
 		if Comparar(u, "k") {
 			i = i * 1024
@@ -95,7 +119,20 @@ func generarParticion(s string, u string, p string, t string, f string, n string
 		Error("FDISK", "Fit no contiene los valores esperados.")
 		return
 	}
+
+	if !ArchivoExiste(p) {
+		Error("FDISK", "El disco no existe.")
+		return
+
+	}
+
 	mbr := leerDisco(p)
+
+	if int64(i) > mbr.Mbr_tamano {
+		Error("FDISK", "El tamaño de la partición es mayor que el tamaño del disco.")
+		return
+	}
+
 	particiones := GetParticiones(*mbr)
 	var between []Transition
 
@@ -187,11 +224,138 @@ func generarParticion(s string, u string, p string, t string, f string, n string
 	Mensaje("FDISK", "Partición Primaria: "+n+", creada correctamente.")
 }
 
+func eliminarParticion(driveletter string, name string, delete string) {
+	path := directorioActual() + "/MIA/P1/" + driveletter + ".dsk"
+	mbr := leerDisco(path)
+	if mbr == nil {
+		Error("FDISK - eliminarParticion", "No se ha encontrado el disco.")
+		return
+	}
+
+	particion := BuscarParticiones(*mbr, name, path)
+	if particion == nil {
+		Error("FDISK - eliminarParticion", "No se ha encontrado la partición: "+name)
+		return
+	}
+
+	if delete != "full" {
+		Error("FDISK - eliminarParticion", "Parámetro DELETE únicamente puede ser FULL")
+		return
+	}
+
+	if delete == "full" {
+		particion.Part_status = '0'
+
+		file, err := os.OpenFile(path, os.O_WRONLY, os.ModeAppend)
+		if err != nil {
+			Error("FDISK", "Error al abrir el archivo del disco.")
+			return
+		}
+
+		defer file.Close()
+
+		file.Seek(particion.Part_start, 0)
+
+		nullBytes := make([]byte, int(particion.Part_size))
+
+		for i := range nullBytes {
+			nullBytes[i] = 0
+		}
+
+		_, err = file.Write(nullBytes)
+		if err != nil {
+			Error("FDISK", "Error al eliminar la partición.")
+			return
+		}
+
+		Mensaje("FDISK", "Partición: "+name+", eliminada correctamente.")
+		return
+	}
+}
+
+func agregarEspacioParticion(driveletter string, name string, unit string, add string) {
+	path := directorioActual() + "/MIA/P1/" + driveletter + ".dsk"
+	mbr := leerDisco(path)
+	if mbr == nil {
+		Error("FDISK - agregarEspacioParticion", "No se ha encontrado el disco.")
+		return
+	}
+
+	particion := BuscarParticiones(*mbr, name, path)
+	if particion == nil {
+		Error("FDISK - agregarEspacioParticion", "No se ha encontrado la partición: "+name)
+		return
+	}
+
+	newSize, error_ := strconv.Atoi(add)
+	if error_ != nil {
+		Error("FDISK - agregarEspacioParticion", "Add debe ser un número entero")
+		return
+	}
+	if newSize == 0 {
+		Error("FDISK - agregarEspacioParticion", "No se puede agregar o restar 0 espacio a la partición.")
+		return
+	}
+	if newSize > 0 {
+		Mensaje("FDISK - agregarEspacioParticion", "Agregando espacio a la partición: "+name)
+	} else {
+		Mensaje("FDISK - agregarEspacioParticion", "Restando espacio a la partición: "+name)
+	}
+
+	if Comparar(unit, "b") || Comparar(unit, "k") || Comparar(unit, "m") {
+		if Comparar(unit, "k") {
+			newSize = newSize * 1024
+		} else if Comparar(unit, "m") {
+			newSize = newSize * 1024 * 1024
+		}
+	} else {
+		Error("FDISK - agregarEspacioParticion", "Unit no contiene los valores esperados.")
+		return
+
+	}
+
+	prevSize := int(particion.Part_size)
+
+	finalSize := int(particion.Part_size) + newSize
+	if finalSize > int(mbr.Mbr_tamano) {
+		Error("FDISK - agregarEspacioParticion", "No hay suficiente espacio en la partición.")
+		return
+
+	}
+
+	if newSize < 0 {
+		if prevSize+newSize < 0 {
+			Error("FDISK - agregarEspacioParticion", "No se puede reducir el tamaño de la partición a un valor negativo.")
+			return
+		} else {
+			particion.Part_size = particion.Part_size + int64(newSize)
+		}
+	}
+
+	if newSize > 0 {
+		particion.Part_size = particion.Part_size + int64(newSize)
+	}
+
+	file, err := os.OpenFile(path, os.O_WRONLY, os.ModeAppend)
+	if err != nil {
+		Error("FDISK - agregarEspacioParticion", "Error al abrir el archivo del disco.")
+		return
+	}
+
+	defer file.Close()
+
+	file.Seek(particion.Part_start, 0)
+
+	var binario2 bytes.Buffer
+
+	binary.Write(&binario2, binary.BigEndian, particion)
+
+	EscribirBytes(file, binario2.Bytes())
+
+	Mensaje("FDISK - agregarEspacioParticion", "Partición: "+name+", modificada correctamente. Tamaño anterior: "+strconv.Itoa(prevSize)+"KB, Tamaño nuevo: "+strconv.Itoa(int(particion.Part_size))+"KB")
+}
+
 func GetParticiones(disco Structs.MBR) []Structs.Particion {
-
-	fmt.Println("=============== FUNCIÓN GET PARTICIONES - ENTRADA ===============")
-	fmt.Println(disco)
-
 	var v []Structs.Particion
 	v = append(v, disco.Mbr_partition_1)
 	v = append(v, disco.Mbr_partition_2)
@@ -201,12 +365,6 @@ func GetParticiones(disco Structs.MBR) []Structs.Particion {
 }
 
 func BuscarParticiones(mbr Structs.MBR, name string, path string) *Structs.Particion {
-
-	fmt.Println("=============== FUNCIÓN BUSCAR PARTICIONES - ENTRADA ===============")
-	fmt.Println(mbr)
-	fmt.Println(name)
-	fmt.Println(path)
-
 	var particiones [4]Structs.Particion
 	particiones[0] = mbr.Mbr_partition_1
 	particiones[1] = mbr.Mbr_partition_2
@@ -261,11 +419,6 @@ func BuscarParticiones(mbr Structs.MBR, name string, path string) *Structs.Parti
 }
 
 func GetLogicas(particion Structs.Particion, path string) []Structs.EBR {
-
-	fmt.Println("=============== FUNCIÓN GET LOGICAS - ENTRADA ===============")
-	fmt.Println(particion)
-	fmt.Println(path)
-
 	var ebrs []Structs.EBR
 	file, err := os.Open(strings.ReplaceAll(path, "\"", ""))
 	if err != nil {
@@ -305,12 +458,6 @@ func GetLogicas(particion Structs.Particion, path string) []Structs.EBR {
 }
 
 func Logica(particion Structs.Particion, ep Structs.Particion, path string) {
-
-	fmt.Println("=============== FUNCIÓN LÓGICA - ENTRADA ===============")
-	fmt.Println(particion)
-	fmt.Println(ep)
-	fmt.Println(path)
-
 	logic := Structs.NewEBR()
 	logic.Part_status = '1'
 	logic.Part_fit = particion.Part_fit
@@ -336,7 +483,7 @@ func Logica(particion Structs.Particion, ep Structs.Particion, path string) {
 	err_ := binary.Read(buffer, binary.BigEndian, &tmp)
 
 	if err_ != nil {
-		Error("FDISK", "Error al leer el archivo")
+		Error("FDSIK", "Error al leer el archivo")
 		return
 	}
 	if err != nil {
@@ -398,14 +545,6 @@ func Logica(particion Structs.Particion, ep Structs.Particion, path string) {
 }
 
 func ajustar(mbr Structs.MBR, p Structs.Particion, t []Transition, ps []Structs.Particion, u int) *Structs.MBR {
-
-	fmt.Println("=============== FUNCIÓN AJUSTAR - ENTRADA ===============")
-	fmt.Println(mbr)
-	fmt.Println(p)
-	fmt.Println(t)
-	fmt.Println(ps)
-	fmt.Println(u)
-
 	if u == 0 {
 		p.Part_start = int64(unsafe.Sizeof(mbr))
 		startValue = int(p.Part_start)

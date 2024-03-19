@@ -64,6 +64,16 @@ func Inicio() {
 
 func Comando(text string) string {
 
+	fmt.Println(`
+	 _   _ _    _ ________      ______     _____ ____  __  __          _   _ _____   ____  
+	| \ | | |  | |  ____\ \    / / __ \   / ____/ __ \|  \/  |   /\   | \ | |  __ \ / __ \ 
+	|  \| | |  | | |__   \ \  / / |  | | | |   | |  | | \  / |  /  \  |  \| | |  | | |  | |
+	| . ' | |  | |  __|   \ \/ /| |  | | | |   | |  | | |\/| | / /\ \ | . ' | |  | | |  | |
+	| |\  | |__| | |____   \  / | |__| | | |___| |__| | |  | |/ ____ \| |\  | |__| | |__| |
+	|_| \_|\____/|______|   \/   \____/   \_____\____/|_|  |_/_/    \_\_| \_|_____/ \____/ 			
+
+	`)
+
 	fmt.Println("FUNCIÓN COMANDO - ENTRADA: " + text)
 
 	var token string
@@ -177,6 +187,12 @@ func funciones(token string, tks []string) {
 		} else if Comandos.Comparar(token, "MOUNT") {
 			fmt.Println("=============== FUNCIÓN MOUNT ===============")
 			Comandos.ValidarDatosMOUNT(tks)
+		} else if Comandos.Comparar(token, "UNMOUNT") {
+			fmt.Println("=============== FUNCIÓN UNMOUNT ===============")
+			Comandos.ValidarDatosUNMOUNT(tks)
+		} else if Comandos.Comparar(token, "REP") {
+			fmt.Println("=============== FUNCIÓN REP ===============")
+			Comandos.ValidarDatosREP(tks)
 		} else if Comandos.Comparar(token, "MKFS") {
 			fmt.Println("=============== FUNCIÓN MKFS ===============")
 			Comandos.ValidarDatosMKFS(tks)
@@ -227,6 +243,8 @@ func funciones(token string, tks []string) {
 				fmt.Println("=============== FUNCIÓN RMUSER ===============")
 				Comandos.ValidarDatosUsers(tks, "RM")
 			}
+		} else {
+			Comandos.Error("COMANDO", "No se reconoce el comando")
 		}
 	}
 }

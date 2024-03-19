@@ -18,7 +18,8 @@ func ValidarDatosMKFS(context []string) {
 	fmt.Println(context)
 
 	id := ""
-	tipo := "Full"
+	tipo := "full"
+	fs := "2fs"
 
 	for i := 0; i < len(context); i++ {
 		token := context[i]
@@ -26,26 +27,39 @@ func ValidarDatosMKFS(context []string) {
 		if Comparar(tk[0], "id") {
 			id = tk[1]
 		} else if Comparar(tk[0], "type") {
-			if Comparar(tk[1], "fast") || Comparar(tk[1], "full") {
+			if Comparar(tk[1], "full") {
 				tipo = tk[1]
 			} else {
-				Error("MKFS", "El comando type debe tener valores específicos")
+				Error("MKFS", "El comando type debe ser 'full' o no debe venir.")
 				return
 			}
+		} else if Comparar(tk[0], "fs") {
+			if Comparar(tk[1], "2fs") || Comparar(tk[1], "3fs") {
+				fs = tk[1]
+			} else {
+				Error("MKFS", "El comando fs debe ser '2fs' o '3fs'")
+				return
+			}
+		} else {
+			Error("MKFS", "El comando no tiene parámetros válidos")
+			return
 		}
 	}
+
 	if id == "" {
-		Error("MKFS", "EL comando requiere el parámetro id obligatoriamente")
+		Error("MKFS", "EL comando requiere el parámetro ID obligatoriamente")
 		return
 	}
-	mkfs(id, tipo)
+
+	mkfs(id, tipo, fs)
 }
 
-func mkfs(id string, t string) {
+func mkfs(id string, t string, fs string) {
 
 	fmt.Println("=============== FUNCIÓN MKFS - MKFS.GO ===============")
 	fmt.Println("ID: " + id)
 	fmt.Println("Tipo: " + t)
+	fmt.Println("FS: " + fs)
 
 	p := ""
 	particion := GetMount("MKFS", id, &p)
@@ -63,7 +77,12 @@ func mkfs(id string, t string) {
 	copy(spr.S_mtime[:], fecha)
 	spr.S_mnt_count = spr.S_mnt_count + 1
 	spr.S_filesystem_type = 2
-	ext2(spr, particion, int64(n), p)
+
+	if fs == "2fs" {
+		ext2(spr, particion, int64(n), p)
+	} else if fs == "3fs" {
+		ext3(spr, particion, int64(n), p)
+	}
 }
 
 func ext2(spr Structs.SuperBloque, p Structs.Particion, n int64, path string) {
@@ -240,4 +259,8 @@ func ext2(spr Structs.SuperBloque, p Structs.Particion, n int64, path string) {
 		}
 	}
 	Mensaje("MKFS", "Se ha formateado la partición "+nombreParticion+" correctamente.")
+}
+
+func ext3(spr Structs.SuperBloque, p Structs.Particion, n int64, path string) {
+
 }
